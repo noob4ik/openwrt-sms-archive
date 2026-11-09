@@ -1,6 +1,7 @@
 name: OpenWrt APK
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [main]
@@ -22,7 +23,7 @@ jobs:
       - run: node --check files/www/luci-static/resources/view/system/sms-archive.js
 
   build:
-    if: startsWith(github.ref, 'refs/tags/v') && vars.ENABLE_CI_SIGNING == 'true'
+    if: vars.ENABLE_CI_SIGNING == 'true' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
     needs: test
     runs-on: ubuntu-24.04
     environment: package-signing
@@ -38,14 +39,22 @@ jobs:
       - name: Build signed APK repository
         env:
           APK_SIGNING_KEY_PEM: ${{ secrets.APK_SIGNING_KEY_PEM }}
+          APK_SIGNING_PUBLIC_SHA256: ${{ vars.APK_SIGNING_PUBLIC_SHA256 }}
         run: |
           set -euo pipefail
           umask 077
-          export SMS_ARCHIVE_VERSION="${GITHUB_REF_NAME#v}"
+          if [[ $GITHUB_EVENT_NAME == workflow_dispatch ]]; then
+            export SMS_ARCHIVE_VERSION=0.0.0
+          else
+            export SMS_ARCHIVE_VERSION="${GITHUB_REF_NAME#v}"
+          fi
           export SMS_ARCHIVE_SIGNING_KEY="$RUNNER_TEMP/sms-archive.key"
           trap 'rm -f "$SMS_ARCHIVE_SIGNING_KEY"' EXIT
           printf '%s\n' "$APK_SIGNING_KEY_PEM" > "$SMS_ARCHIVE_SIGNING_KEY"
           unset APK_SIGNING_KEY_PEM
+          [[ $APK_SIGNING_PUBLIC_SHA256 =~ ^[0-9a-f]{64}$ ]]
+          actual=$(openssl pkey -in "$SMS_ARCHIVE_SIGNING_KEY" -pubout | sha256sum)
+          [[ ${actual%% *} == "$APK_SIGNING_PUBLIC_SHA256" ]]
           umask 022
           bash scripts/build-apk.sh
       - uses: actions/upload-artifact@v6
@@ -54,10 +63,12 @@ jobs:
           path: dist/release/
           if-no-files-found: error
       - uses: actions/upload-pages-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
           path: dist/feed/
 
   release:
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-24.04
     permissions:

@@ -88,9 +88,9 @@ SMS_ARCHIVE_SIGNING_KEY="$HOME/sms-archive.key" bash scripts/build-apk.sh
 ## Публикация в GitHub
 
 1. Создайте публичный репозиторий `openwrt-sms-archive` и отправьте исходники. В настройках Pages выберите **GitHub Actions** как источник.
-2. Соберите и подпишите APK локально. Создайте тег версии, отправьте его на GitHub и приложите все файлы из `dist/release/` к GitHub Release.
-3. Запустите workflow **Publish signed APK feed**, передав тег релиза. Он проверит контрольные суммы и опубликует APK, индекс и публичный ключ на Pages. Адрес feed этого проекта — `https://noob4ik.github.io/openwrt-sms-archive/packages.adb`.
+2. Для автоматического выпуска включите `ENABLE_CI_SIGNING=true`, задайте `APK_SIGNING_PUBLIC_SHA256` и сохраните `APK_SIGNING_KEY_PEM` как секрет окружения `package-signing`. Разрешите окружению ветку `main` для проверки и теги `v*` для выпуска.
+3. Запустите **OpenWrt APK** вручную из `main`, чтобы проверить сборку и подпись. Проверка создаёт только временный артефакт с версией `0.0.0`. Чтобы выпустить новую версию, отправьте её SemVer-тег `vX.Y.Z`. Workflow соберёт APK, создаст GitHub Release и развернёт подписанный feed.
 
-Для отдельной настройки подписи в CI предусмотрен режим `ENABLE_CI_SIGNING=true` и секрет `APK_SIGNING_KEY_PEM` в окружении `package-signing`. По умолчанию релиз подписывается локально.
+При локальной подписи отключите `ENABLE_CI_SIGNING`, приложите все файлы из `dist/release/` к GitHub Release и запустите **Publish signed APK feed**, передав тег релиза. Адрес feed этого проекта — `https://noob4ik.github.io/openwrt-sms-archive/packages.adb`.
 
 Лицензия собственного кода и документации — MIT. Уведомления о сторонних Go-компонентах включаются в пакет при сборке.
