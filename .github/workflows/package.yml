@@ -22,7 +22,7 @@ jobs:
       - run: node --check files/www/luci-static/resources/view/system/sms-archive.js
 
   build:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && vars.ENABLE_CI_SIGNING == 'true'
     needs: test
     runs-on: ubuntu-24.04
     environment: package-signing

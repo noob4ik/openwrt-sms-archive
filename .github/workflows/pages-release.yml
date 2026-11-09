@@ -1,0 +1,47 @@
+name: Publish signed APK feed
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify release assets and prepare feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ $RELEASE_TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          mkdir -p release feed
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir release
+          (cd release && sha256sum -c SHA256SUMS)
+          cp release/*.apk release/packages.adb release/sms-archive.pub.pem feed/
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: feed/
+
+  deploy:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
