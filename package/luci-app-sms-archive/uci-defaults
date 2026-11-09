@@ -1,0 +1,6 @@
+#!/bin/sh
+
+if [ ! -e /etc/config/sms_archive ]; then
+	umask 077
+	cp /usr/share/sms-archive/default.config /etc/config/sms_archive || exit 1
+fi

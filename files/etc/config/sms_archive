@@ -1,0 +1,2 @@
+config archive 'settings'
+	option sim_keep_slots '10'

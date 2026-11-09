@@ -1,0 +1,15 @@
+{
+	"luci-app-sms-archive": {
+		"description": "View the SMS archive and manage SIM labels",
+		"read": {
+			"ubus": {
+				"luci.sms-archive": [ "list", "status" ]
+			}
+		},
+		"write": {
+			"ubus": {
+				"luci.sms-archive": [ "rename" ]
+			}
+		}
+	}
+}

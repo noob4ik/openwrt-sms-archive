@@ -1,0 +1,89 @@
+name: OpenWrt APK
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.3'
+      - run: go test ./...
+      - run: go vet ./...
+      - run: node --check files/www/luci-static/resources/view/system/sms-archive.js
+
+  build:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-24.04
+    environment: package-signing
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.3'
+      - name: Install OpenWrt SDK prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y build-essential g++-multilib gawk gettext libncurses-dev libssl-dev rsync unzip xsltproc zlib1g-dev zstd
+      - name: Build signed APK repository
+        env:
+          APK_SIGNING_KEY_PEM: ${{ secrets.APK_SIGNING_KEY_PEM }}
+        run: |
+          set -euo pipefail
+          umask 077
+          export SMS_ARCHIVE_VERSION="${GITHUB_REF_NAME#v}"
+          export SMS_ARCHIVE_SIGNING_KEY="$RUNNER_TEMP/sms-archive.key"
+          trap 'rm -f "$SMS_ARCHIVE_SIGNING_KEY"' EXIT
+          printf '%s\n' "$APK_SIGNING_KEY_PEM" > "$SMS_ARCHIVE_SIGNING_KEY"
+          unset APK_SIGNING_KEY_PEM
+          umask 022
+          bash scripts/build-apk.sh
+      - uses: actions/upload-artifact@v6
+        with:
+          name: release
+          path: dist/release/
+          if-no-files-found: error
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist/feed/
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: release
+          path: release
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release/* --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes
+
+  pages:
+    needs: release
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment

@@ -1,0 +1,8 @@
+/dist/
+/.local/
+/vendor/
+*.apk
+*.pem
+*.key
+*.tar.zst
+.env
